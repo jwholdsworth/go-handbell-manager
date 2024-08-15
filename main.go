@@ -4,15 +4,18 @@ package main
 
 import (
 	"log"
-	"time"
+	"sync"
 
 	"github.com/google/gousb"
 	. "github.com/splace/joysticks"
 )
 
-var VENDOR_ID = gousb.ID(4094)
-
-var PRODUCT_ID = gousb.ID(4104)
+const VENDOR_ID = gousb.ID(4094)
+const PRODUCT_ID = gousb.ID(4104)
+const (
+	Handstroke float32 = -0.3
+	Backstroke float32 = 0
+)
 
 func main() {
 	ctx := gousb.NewContext()
@@ -25,17 +28,14 @@ func main() {
 		log.Panic("Could not find any devices")
 	}
 
+	var wg sync.WaitGroup
+	wg.Add(len(devices))
+
 	for i, d := range devices {
 		defer d.Close()
-		loadController(i + 1)
+		go loadController(i + 1)
 	}
-	// try connecting to specific controller.
-	// the index is system assigned, typically it increments on each new controller added.
-	// indexes remain fixed for a given controller, if/when other controller(s) are removed.
-
-	log.Println("Timeout in 10 secs.")
-	time.Sleep(time.Second * 30)
-	log.Println("Shutting down due to timeout.")
+	wg.Wait()
 }
 
 func loadController(controller int) {
@@ -52,18 +52,30 @@ func loadController(controller int) {
 	// start feeding OS events onto the event channels.
 	go device.ParcelOutEvents()
 
-	// handle event channels
-	go func() {
-		for {
-			select {
-			case <-b1press:
-				log.Println("button #1 pressed")
-			case <-b2press:
-				log.Println("button #2 pressed")
-			case v := <-v1move:
-				vpos := v.(AxisEvent)
-				log.Printf("Controller %d moved to %f", controller, vpos.V)
+	var lastStroke = Backstroke
+
+	for {
+		select {
+		case <-b1press:
+			log.Println("button #1 pressed")
+		case <-b2press:
+			log.Println("button #2 pressed")
+		case v := <-v1move:
+			vpos := v.(AxisEvent)
+			if vpos.V >= float32(Backstroke) && lastStroke == Handstroke {
+				// backstroke rung
+				lastStroke = Backstroke
+				log.Printf("Controller %d backstroke rung", controller)
+
+				// send keyboard signal
+			}
+			if vpos.V <= float32(Handstroke) && lastStroke == Backstroke {
+				// handstroke rung
+				lastStroke = Handstroke
+				log.Printf("Controller %d handstroke rung", controller)
+
+				// send keyboard signal
 			}
 		}
-	}()
+	}
 }
