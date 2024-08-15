@@ -1,76 +1,69 @@
+// log a description of events when pressing button #1 or moving hat#1.
+// 10sec timeout.
 package main
 
 import (
 	"log"
+	"time"
 
 	"github.com/google/gousb"
+	. "github.com/splace/joysticks"
 )
 
 var VENDOR_ID = gousb.ID(4094)
+
 var PRODUCT_ID = gousb.ID(4104)
 
 func main() {
 	ctx := gousb.NewContext()
 	defer ctx.Close()
-
 	devices, err := ctx.OpenDevices(func(desc *gousb.DeviceDesc) bool {
 		return desc.Vendor == VENDOR_ID && desc.Product == PRODUCT_ID
 	})
 
-	for _, device := range devices {
-		defer device.Close()
-	}
-
 	if err != nil {
-		log.Fatalf("Error opening devices: %v", err)
+		log.Panic("Could not find any devices")
 	}
 
-	if len(devices) == 0 {
-		log.Fatal("No devices found")
+	for i, d := range devices {
+		defer d.Close()
+		loadController(i + 1)
 	}
+	// try connecting to specific controller.
+	// the index is system assigned, typically it increments on each new controller added.
+	// indexes remain fixed for a given controller, if/when other controller(s) are removed.
 
-	// Pick the first device found.
-	device := devices[0]
+	log.Println("Timeout in 10 secs.")
+	time.Sleep(time.Second * 30)
+	log.Println("Shutting down due to timeout.")
+}
 
-	// Switch the configuration to #1.
-	cfg, err := device.Config(1)
-	if err != nil {
-		log.Fatalf("%s.Config(1): %v", device, err)
-	}
-	defer cfg.Close()
+func loadController(controller int) {
+	device := Connect(controller)
 
-	intf, err := cfg.Interface(0, 0)
-	if err != nil {
-		log.Fatalf("%s.Interface(0, 0): %v", cfg, err)
-	}
-	defer intf.Close()
+	// using Connect allows a device to be interrogated
+	log.Printf("Action XL Controller %d: Buttons:%d, Hats:%d\n", controller, len(device.Buttons), len(device.HatAxes)/2)
 
-	epIn, err := intf.InEndpoint(1)
-	if err != nil {
-		log.Fatalf("%s.InEndpoint(1): %v", intf, err)
-	}
+	// get/assign channels for specific events
+	b1press := device.OnClose(1)
+	b2press := device.OnClose(2)
+	v1move := device.OnPanX(1)
 
-	// Buffer large enough for 10 USB packets from endpoint 6.
-	buf := make([]byte, 10*epIn.Desc.MaxPacketSize)
-	// total := 0
-	// // Repeat the read/write cycle 10 times.
-	// for i := 0; i < 10; i++ {
-	// 	// readBytes might be smaller than the buffer size. readBytes might be greater than zero even if err is not nil.
-	// 	readBytes, err := epIn.Read(buf)
-	// 	if err != nil {
-	// 		fmt.Println("Read returned an error:", err)
-	// 	}
-	// 	if readBytes == 0 {
-	// 		log.Fatalf("IN endpoint 1 returned 0 bytes of data.")
-	// 	}
-	// 	total += readBytes
-	// }
-	// fmt.Printf("Total number of bytes copied: %d\n", total)
+	// start feeding OS events onto the event channels.
+	go device.ParcelOutEvents()
 
-	inputStream, err := epIn.NewStream(epIn.Desc.MaxPacketSize, 10)
-	if err != nil {
-		log.Fatalf("Error reading the stream: %v", err)
-	}
-	input, _ := inputStream.Read(buf)
-	log.Printf("Bytes read: %v", input)
+	// handle event channels
+	go func() {
+		for {
+			select {
+			case <-b1press:
+				log.Println("button #1 pressed")
+			case <-b2press:
+				log.Println("button #2 pressed")
+			case v := <-v1move:
+				vpos := v.(AxisEvent)
+				log.Printf("Controller %d moved to %f", controller, vpos.V)
+			}
+		}
+	}()
 }
