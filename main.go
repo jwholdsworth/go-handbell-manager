@@ -6,6 +6,7 @@ import (
 	"log"
 	"sync"
 
+	"git.tcp.direct/kayos/sendkeys"
 	"github.com/google/gousb"
 	. "github.com/splace/joysticks"
 )
@@ -16,6 +17,11 @@ const (
 	Handstroke float32 = -0.3
 	Backstroke float32 = 0
 )
+
+var keys = map[int]string{
+	1: "J",
+	2: "F",
+}
 
 func main() {
 	ctx := gousb.NewContext()
@@ -54,6 +60,11 @@ func loadController(controller int) {
 
 	var lastStroke = Backstroke
 
+	key, err := sendkeys.NewKBWrapWithOptions(sendkeys.Noisy)
+	if err != nil {
+		log.Panic(err)
+	}
+
 	for {
 		select {
 		case <-b1press:
@@ -68,6 +79,7 @@ func loadController(controller int) {
 				log.Printf("Controller %d backstroke rung", controller)
 
 				// send keyboard signal
+				key.Type(keys[controller])
 			}
 			if vpos.V <= float32(Handstroke) && lastStroke == Backstroke {
 				// handstroke rung
@@ -75,6 +87,7 @@ func loadController(controller int) {
 				log.Printf("Controller %d handstroke rung", controller)
 
 				// send keyboard signal
+				key.Type(keys[controller])
 			}
 		}
 	}
