@@ -11,3 +11,4 @@ Right now, it's a very basic application that reads the raw USB data from the Ac
 * Target just the Abel process so it doesn't start typing "F" and "J" all over the place
 * Plus numerous other things for sure!
 * Document how to not need to run it as root (probably some apparmour nonesense in Ubuntu)
+* Document any external libraries that might need to be installed (e.g. libusb)
