@@ -19,11 +19,12 @@ const (
 	Backstroke Stroke = iota
 )
 
+// button map with standard Abel defaults
 var buttons = KeyMap{
-	Button1: "G",
-	Button2: "Z",
-	Button3: "B",
-	Button4: "S",
+	Button1: "Z", // start - this needs to be F9
+	Button2: "G", // go
+	Button3: "A", // bob
+	Button4: ";", // single
 }
 
 var keys = map[int]string{
@@ -56,7 +57,6 @@ func main() {
 }
 
 func loadController(device *gousb.Device, controllerNumber int) {
-	log.Print(controllerNumber)
 	cfg, err := device.Config(1)
 	if err != nil {
 		log.Fatalf("Error getting configuration for controller %d: %v", controllerNumber, err)
@@ -107,7 +107,7 @@ func loadController(device *gousb.Device, controllerNumber int) {
 		// 32-0: position and accellerometer
 		// 18 is level, ~30 is vertical. Lower than 18 means a fast swing down. Higher than ~30 is a fast swing up.
 
-		input = handleButtonPress(controllerNumber, input, &buttonPressed)
+		input = handleButtonPress(controllerNumber, input, &buttonPressed, key)
 
 		if lastStroke == Handstroke && input < 18 {
 			// ring the backstroke
@@ -127,11 +127,16 @@ func loadController(device *gousb.Device, controllerNumber int) {
 
 }
 
-func handleButtonPress(controller int, input byte, buttonPressed *ButtonPress) byte {
+func handleButtonPress(controller int, input byte, buttonPressed *ButtonPress, key *sendkeys.KBWrap) byte {
 	if (input>>7)&1 == 1 {
 		if !buttonPressed.First {
 			fmt.Printf("Button 1 pressed on controller %d\n", controller)
-			// button has just been pressed - do stuff!
+			if controller == 1 {
+				key.Type(buttons.Button1)
+			}
+			if controller == 2 {
+				key.Type(buttons.Button3)
+			}
 		}
 		buttonPressed.First = true
 	} else {
@@ -141,7 +146,12 @@ func handleButtonPress(controller int, input byte, buttonPressed *ButtonPress) b
 	if (input>>6)&1 == 1 {
 		if !buttonPressed.Second {
 			fmt.Printf("Button 2 pressed on controller %d\n", controller)
-			// button has just been pressed - do stuff!
+			if controller == 1 {
+				key.Type(buttons.Button2)
+			}
+			if controller == 2 {
+				key.Type(buttons.Button4)
+			}
 		}
 
 		buttonPressed.Second = true
