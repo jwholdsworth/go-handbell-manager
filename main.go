@@ -5,24 +5,30 @@ import (
 	"log"
 	"sync"
 
+	"git.tcp.direct/kayos/sendkeys"
 	"github.com/google/gousb"
 )
 
-const VENDOR_ID = gousb.ID(4094)
-const PRODUCT_ID = gousb.ID(4104)
 const (
-	Handstroke float32 = -0.3
-	Backstroke float32 = 0
+	PRODUCT_ID = gousb.ID(4104)
+	VENDOR_ID  = gousb.ID(4094)
 )
+
+const (
+	Handstroke Stroke = iota
+	Backstroke Stroke = iota
+)
+
+var buttons = KeyMap{
+	Button1: "G",
+	Button2: "Z",
+	Button3: "B",
+	Button4: "S",
+}
 
 var keys = map[int]string{
 	1: "J",
 	2: "F",
-}
-
-type ButtonPress struct {
-	First  bool
-	Second bool
 }
 
 func main() {
@@ -41,15 +47,16 @@ func main() {
 	var wg sync.WaitGroup
 	wg.Add(len(devices))
 
-	for i, d := range devices {
-		defer d.Close()
-		go loadController(d, i)
+	for i := 0; i < len(devices); i++ {
+		defer devices[i].Close()
+		go loadController(devices[i], i+1)
 	}
 
 	wg.Wait()
 }
 
 func loadController(device *gousb.Device, controllerNumber int) {
+	log.Print(controllerNumber)
 	cfg, err := device.Config(1)
 	if err != nil {
 		log.Fatalf("Error getting configuration for controller %d: %v", controllerNumber, err)
@@ -76,6 +83,13 @@ func loadController(device *gousb.Device, controllerNumber int) {
 		Second: false,
 	}
 
+	key, err := sendkeys.NewKBWrapWithOptions(sendkeys.Noisy)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	var lastStroke Stroke = Backstroke
+
 	for {
 		readBytes, err := epIn.Read(buf)
 		if err != nil {
@@ -94,23 +108,38 @@ func loadController(device *gousb.Device, controllerNumber int) {
 		// 18 is level, ~30 is vertical. Lower than 18 means a fast swing down. Higher than ~30 is a fast swing up.
 		// fmt.Printf("%08b\t%d", input, input)
 
+		// fmt.Println(input)
+
+		input = handleButtonPress(controllerNumber, input, &buttonPressed)
 		fmt.Println(input)
 
-		handleButtonPress(controllerNumber, input, &buttonPressed)
+		if lastStroke == Handstroke && input < 18 {
+			// ring the backstroke
+			fmt.Printf("Backstroke rung by controller %d\n", controllerNumber)
+			lastStroke = Backstroke
+			key.Type(keys[controllerNumber])
+		}
+
+		if lastStroke == Backstroke && input > 30 {
+			// ring the handstroke
+			fmt.Printf("Handstroke rung by controller %d\n", controllerNumber)
+			lastStroke = Handstroke
+			key.Type(keys[controllerNumber])
+		}
 
 		// fmt.Printf("%06b\t%d\t", buf[3], buf[3])
 
-		// fmt.Println()
+		// fmt.Println(input)
 
 		// fmt.Println(buf[0], "\t", buf[1], "\t", buf[2], "\t", buf[3], "\t", buf[4])
 	}
 
 }
 
-func handleButtonPress(controller int, input byte, buttonPressed *ButtonPress) {
+func handleButtonPress(controller int, input byte, buttonPressed *ButtonPress) byte {
 	if (input>>7)&1 == 1 {
 		if !buttonPressed.First {
-			fmt.Printf("Button 1 pressed on controller %d", controller)
+			fmt.Printf("Button 1 pressed on controller %d\n", controller)
 			// button has just been pressed - do stuff!
 		}
 		buttonPressed.First = true
@@ -120,7 +149,7 @@ func handleButtonPress(controller int, input byte, buttonPressed *ButtonPress) {
 
 	if (input>>6)&1 == 1 {
 		if !buttonPressed.Second {
-			fmt.Printf("Button 2 pressed on controller %d", controller)
+			fmt.Printf("Button 2 pressed on controller %d\n", controller)
 			// button has just been pressed - do stuff!
 		}
 
@@ -132,6 +161,8 @@ func handleButtonPress(controller int, input byte, buttonPressed *ButtonPress) {
 	// clear bits 6&7
 	input = byte(clearBit(input, 6))
 	input = byte(clearBit(input, 7))
+
+	return input
 }
 
 func clearBit(input byte, pos uint) byte {
