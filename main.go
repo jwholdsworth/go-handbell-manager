@@ -1,5 +1,3 @@
-// log a description of events when pressing button #1 or moving hat#1.
-// 10sec timeout.
 package main
 
 import (
@@ -8,7 +6,6 @@ import (
 	"sync"
 
 	"github.com/google/gousb"
-	// . "github.com/splace/joysticks"
 )
 
 const VENDOR_ID = gousb.ID(4094)
@@ -21,6 +18,11 @@ const (
 var keys = map[int]string{
 	1: "J",
 	2: "F",
+}
+
+type ButtonPress struct {
+	First  bool
+	Second bool
 }
 
 func main() {
@@ -69,9 +71,9 @@ func loadController(device *gousb.Device, controllerNumber int) {
 
 	buf := make([]byte, 10*epIn.Desc.MaxPacketSize)
 
-	var buttonPressed = map[int]bool{
-		1: false,
-		2: false,
+	buttonPressed := ButtonPress{
+		First:  false,
+		Second: false,
 	}
 
 	for {
@@ -92,22 +94,9 @@ func loadController(device *gousb.Device, controllerNumber int) {
 		// 18 is level, ~30 is vertical. Lower than 18 means a fast swing down. Higher than ~30 is a fast swing up.
 		// fmt.Printf("%08b\t%d", input, input)
 
-		if (input>>7)&1 == 1 {
-			fmt.Println("Button 1 pressed")
-			if !buttonPressed[1] {
-				// button has just been pressed - do stuff!
-			}
-			buttonPressed[1] = true
-		} else {
-			buttonPressed[1] = false
-		}
+		fmt.Println(input)
 
-		if (input>>6)&1 == 1 {
-			fmt.Println("Button 2 pressed")
-			buttonPressed[2] = true
-		} else {
-			buttonPressed[2] = false
-		}
+		handleButtonPress(controllerNumber, input, &buttonPressed)
 
 		// fmt.Printf("%06b\t%d\t", buf[3], buf[3])
 
@@ -116,4 +105,37 @@ func loadController(device *gousb.Device, controllerNumber int) {
 		// fmt.Println(buf[0], "\t", buf[1], "\t", buf[2], "\t", buf[3], "\t", buf[4])
 	}
 
+}
+
+func handleButtonPress(controller int, input byte, buttonPressed *ButtonPress) {
+	if (input>>7)&1 == 1 {
+		if !buttonPressed.First {
+			fmt.Printf("Button 1 pressed on controller %d", controller)
+			// button has just been pressed - do stuff!
+		}
+		buttonPressed.First = true
+	} else {
+		buttonPressed.First = false
+	}
+
+	if (input>>6)&1 == 1 {
+		if !buttonPressed.Second {
+			fmt.Printf("Button 2 pressed on controller %d", controller)
+			// button has just been pressed - do stuff!
+		}
+
+		buttonPressed.Second = true
+	} else {
+		buttonPressed.Second = false
+	}
+
+	// clear bits 6&7
+	input = byte(clearBit(input, 6))
+	input = byte(clearBit(input, 7))
+}
+
+func clearBit(input byte, pos uint) byte {
+	var mask byte = ^(1 << pos)
+	input &= mask
+	return input
 }
