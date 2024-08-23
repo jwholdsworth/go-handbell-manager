@@ -10,3 +10,4 @@ Right now, it's a very basic application that reads the raw USB data from the Ac
 * Sort out the button presses so you can start/stop/go like you can in Graham's Windows version
 * Target just the Abel process so it doesn't start typing "F" and "J" all over the place
 * Plus numerous other things for sure!
+* Document how to not need to run it as root (probably some apparmour nonesense in Ubuntu)
