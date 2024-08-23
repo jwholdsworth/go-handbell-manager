@@ -2,7 +2,7 @@
 
 This is a very low-fi hacked together version of Graham John's excellent Handbell Manager, designed to run on Linux.
 
-Right now, it's a very basic application that reads the raw USB data from the Action XL Motion Controllers and sends a corresponding keypress to whichever application is in the foreground. That being said, it works well enough for a couple of hours hackery on a Friday night!
+Right now, it's a very basic application that reads the raw USB data from the Action XL Motion Controllers and sends a corresponding keypress to whichever application is in the foreground, should you move it fast/far enough. That being said, it works well enough for a couple of hours hackery on a Friday night!
 
 ## Todo
 
