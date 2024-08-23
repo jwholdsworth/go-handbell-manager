@@ -106,12 +106,8 @@ func loadController(device *gousb.Device, controllerNumber int) {
 		// 64: 1st button pressed
 		// 32-0: position and accellerometer
 		// 18 is level, ~30 is vertical. Lower than 18 means a fast swing down. Higher than ~30 is a fast swing up.
-		// fmt.Printf("%08b\t%d", input, input)
-
-		// fmt.Println(input)
 
 		input = handleButtonPress(controllerNumber, input, &buttonPressed)
-		fmt.Println(input)
 
 		if lastStroke == Handstroke && input < 18 {
 			// ring the backstroke
@@ -127,11 +123,6 @@ func loadController(device *gousb.Device, controllerNumber int) {
 			key.Type(keys[controllerNumber])
 		}
 
-		// fmt.Printf("%06b\t%d\t", buf[3], buf[3])
-
-		// fmt.Println(input)
-
-		// fmt.Println(buf[0], "\t", buf[1], "\t", buf[2], "\t", buf[3], "\t", buf[4])
 	}
 
 }
