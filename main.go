@@ -21,7 +21,7 @@ const (
 
 // button map with standard Abel defaults
 var buttons = KeyMap{
-	Button1: "Z", // start - this needs to be F9
+	Button1: "",  // start - this needs to be F9
 	Button2: "G", // go
 	Button3: "A", // bob
 	Button4: ";", // single
@@ -45,86 +45,83 @@ func main() {
 
 	log.Printf("Detected %d devices", len(devices))
 
+	keyboard, err := sendkeys.NewKBWrapWithOptions(sendkeys.Noisy)
+	if err != nil {
+		log.Panic(err)
+	}
+
 	var wg sync.WaitGroup
 	wg.Add(len(devices))
 
-	for i := 0; i < len(devices); i++ {
-		defer devices[i].Close()
-		go loadController(devices[i], i+1)
+	for i, device := range devices {
+		defer device.Close()
+		go loadController(device, i+1, keyboard)
 	}
 
 	wg.Wait()
 }
 
-func loadController(device *gousb.Device, controllerNumber int) {
-	cfg, err := device.Config(1)
+func loadController(device *gousb.Device, controllerNumber int, keyboard *sendkeys.KBWrap) {
+	configuration, err := device.Config(1)
 	if err != nil {
 		log.Fatalf("Error getting configuration for controller %d: %v", controllerNumber, err)
 	}
-	defer cfg.Close()
+	defer configuration.Close()
 
 	device.SetAutoDetach(true)
 
-	intf, err := cfg.Interface(0, 0)
+	intf, err := configuration.Interface(0, 0)
 	if err != nil {
 		log.Fatalf("Error reading interface for controller %d: %v", controllerNumber, err)
 	}
 	defer intf.Close()
 
-	epIn, err := intf.InEndpoint(1)
+	endpoint, err := intf.InEndpoint(1)
 	if err != nil {
 		log.Fatalf("Error reading endpoint for controller %d: %v", controllerNumber, err)
 	}
 
-	buf := make([]byte, 10*epIn.Desc.MaxPacketSize)
+	buf := make([]byte, 10*endpoint.Desc.MaxPacketSize)
 
 	buttonPressed := ButtonPress{
 		First:  false,
 		Second: false,
 	}
 
-	key, err := sendkeys.NewKBWrapWithOptions(sendkeys.Noisy)
-	if err != nil {
-		log.Panic(err)
-	}
-
 	var lastStroke Stroke = Backstroke
 
 	for {
-		readBytes, err := epIn.Read(buf)
+		readBytes, err := endpoint.Read(buf)
 		if err != nil {
 			fmt.Println("Read returned an error:", err)
 		}
 		if readBytes == 0 {
-			log.Fatalf("IN endpoint 6 returned 0 bytes of data.")
+			log.Fatalf("Received 0 bytes from controller %d", controllerNumber)
 		}
-
-		input := buf[3]
 
 		// the 4th byte is the one we're interested in. The bits are organised as follows:
 		// 128: 2nd button pressed
 		// 64: 1st button pressed
 		// 32-0: position and accellerometer
 		// 18 is level, ~30 is vertical. Lower than 18 means a fast swing down. Higher than ~30 is a fast swing up.
+		input := buf[3]
 
-		input = handleButtonPress(controllerNumber, input, &buttonPressed, key)
+		input = handleButtonPress(controllerNumber, input, &buttonPressed, keyboard)
 
 		if lastStroke == Handstroke && input < 18 {
 			// ring the backstroke
 			fmt.Printf("Backstroke rung by controller %d\n", controllerNumber)
 			lastStroke = Backstroke
-			key.Type(keys[controllerNumber])
+			keyboard.Type(keys[controllerNumber])
 		}
 
 		if lastStroke == Backstroke && input > 30 {
 			// ring the handstroke
 			fmt.Printf("Handstroke rung by controller %d\n", controllerNumber)
 			lastStroke = Handstroke
-			key.Type(keys[controllerNumber])
+			keyboard.Type(keys[controllerNumber])
 		}
-
 	}
-
 }
 
 func handleButtonPress(controller int, input byte, buttonPressed *ButtonPress, key *sendkeys.KBWrap) byte {
