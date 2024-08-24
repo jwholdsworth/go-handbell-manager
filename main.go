@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"sync"
 
@@ -49,7 +48,7 @@ func main() {
 
 	keyboard, err = keybd_event.NewKeyBonding()
 	if err != nil {
-		log.Panic(err)
+		log.Fatalf("There was a problem simulting key presses. The error was: %s", err)
 	}
 
 	var wg sync.WaitGroup
@@ -68,7 +67,7 @@ func loadController(device *gousb.Device, controllerNumber int) {
 	if err != nil {
 		log.Fatalf("Error getting configuration for controller %d: %v", controllerNumber, err)
 	}
-	defer configuration.Close()
+	defer closeConfiguration(configuration, controllerNumber)
 
 	device.SetAutoDetach(true)
 
@@ -76,7 +75,7 @@ func loadController(device *gousb.Device, controllerNumber int) {
 	if err != nil {
 		log.Fatalf("Error reading interface for controller %d: %v", controllerNumber, err)
 	}
-	defer intf.Close()
+	defer closeInterface(intf, controllerNumber)
 
 	endpoint, err := intf.InEndpoint(1)
 	if err != nil {
@@ -95,7 +94,7 @@ func loadController(device *gousb.Device, controllerNumber int) {
 	for {
 		bytes, err := endpoint.Read(buffer)
 		if err != nil {
-			fmt.Println("Read returned an error:", err)
+			log.Fatalf("Unable to read from controller %d. The error was: %s", controllerNumber, err)
 		}
 		if bytes == 0 {
 			log.Fatalf("Received 0 bytes from controller %d", controllerNumber)
@@ -112,14 +111,14 @@ func loadController(device *gousb.Device, controllerNumber int) {
 
 		if lastStroke == Handstroke && input < 18 {
 			// ring the backstroke
-			fmt.Printf("Backstroke rung by controller %d\n", controllerNumber)
+			log.Printf("Backstroke rung by controller %d", controllerNumber)
 			lastStroke = Backstroke
 			sendKeyPress(keys[controllerNumber])
 		}
 
 		if lastStroke == Backstroke && input > 30 {
 			// ring the handstroke
-			fmt.Printf("Handstroke rung by controller %d\n", controllerNumber)
+			log.Printf("Handstroke rung by controller %d", controllerNumber)
 			lastStroke = Handstroke
 			sendKeyPress(keys[controllerNumber])
 		}
@@ -129,7 +128,7 @@ func loadController(device *gousb.Device, controllerNumber int) {
 func handleButtonPress(controller int, input byte, buttonPressed *ButtonPress) byte {
 	if (input>>7)&1 == 1 {
 		if !buttonPressed.First {
-			fmt.Printf("Button 1 pressed on controller %d\n", controller)
+			log.Printf("Button 1 pressed on controller %d", controller)
 			if controller == 1 {
 				sendKeyPress(buttons.Button1)
 			}
@@ -144,7 +143,7 @@ func handleButtonPress(controller int, input byte, buttonPressed *ButtonPress) b
 
 	if (input>>6)&1 == 1 {
 		if !buttonPressed.Second {
-			fmt.Printf("Button 2 pressed on controller %d\n", controller)
+			log.Printf("Button 2 pressed on controller %d", controller)
 			if controller == 1 {
 				sendKeyPress(buttons.Button2)
 			}
@@ -176,4 +175,14 @@ func sendKeyPress(key int) {
 	keyboard.Press()
 	keyboard.Release()
 	keyboard.Clear()
+}
+
+func closeConfiguration(configuration *gousb.Config, controller int) {
+	configuration.Close()
+	log.Printf("Closing configuration for controller %d", controller)
+}
+
+func closeInterface(intf *gousb.Interface, controller int) {
+	intf.Close()
+	log.Printf("Closing interface for controller %d", controller)
 }
