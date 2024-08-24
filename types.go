@@ -1,12 +1,10 @@
 package main
 
 type KeyMap struct {
-	Controller1 string
-	Controller2 string
-	Button1     string
-	Button2     string
-	Button3     string
-	Button4     string
+	Button1 int
+	Button2 int
+	Button3 int
+	Button4 int
 }
 
 type ButtonPress struct {

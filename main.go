@@ -5,8 +5,8 @@ import (
 	"log"
 	"sync"
 
-	"git.tcp.direct/kayos/sendkeys"
 	"github.com/google/gousb"
+	"github.com/micmonay/keybd_event"
 )
 
 const (
@@ -21,16 +21,18 @@ const (
 
 // button map with standard Abel defaults
 var buttons = KeyMap{
-	Button1: "",  // start - this needs to be F9
-	Button2: "G", // go
-	Button3: "A", // bob
-	Button4: ";", // single
+	Button1: keybd_event.VK_F9,        // start
+	Button2: keybd_event.VK_G,         // go
+	Button3: keybd_event.VK_A,         // bob
+	Button4: keybd_event.VK_SEMICOLON, // single
 }
 
-var keys = map[int]string{
-	1: "J",
-	2: "F",
+var keys = map[int]int{
+	1: keybd_event.VK_J,
+	2: keybd_event.VK_F,
 }
+
+var keyboard keybd_event.KeyBonding
 
 func main() {
 	ctx := gousb.NewContext()
@@ -45,7 +47,7 @@ func main() {
 
 	log.Printf("Detected %d devices", len(devices))
 
-	keyboard, err := sendkeys.NewKBWrapWithOptions(sendkeys.Noisy)
+	keyboard, err = keybd_event.NewKeyBonding()
 	if err != nil {
 		log.Panic(err)
 	}
@@ -55,13 +57,13 @@ func main() {
 
 	for i, device := range devices {
 		defer device.Close()
-		go loadController(device, i+1, keyboard)
+		go loadController(device, i+1)
 	}
 
 	wg.Wait()
 }
 
-func loadController(device *gousb.Device, controllerNumber int, keyboard *sendkeys.KBWrap) {
+func loadController(device *gousb.Device, controllerNumber int) {
 	configuration, err := device.Config(1)
 	if err != nil {
 		log.Fatalf("Error getting configuration for controller %d: %v", controllerNumber, err)
@@ -81,7 +83,7 @@ func loadController(device *gousb.Device, controllerNumber int, keyboard *sendke
 		log.Fatalf("Error reading endpoint for controller %d: %v", controllerNumber, err)
 	}
 
-	buf := make([]byte, 10*endpoint.Desc.MaxPacketSize)
+	buffer := make([]byte, 10*endpoint.Desc.MaxPacketSize)
 
 	buttonPressed := ButtonPress{
 		First:  false,
@@ -91,11 +93,11 @@ func loadController(device *gousb.Device, controllerNumber int, keyboard *sendke
 	var lastStroke Stroke = Backstroke
 
 	for {
-		readBytes, err := endpoint.Read(buf)
+		bytes, err := endpoint.Read(buffer)
 		if err != nil {
 			fmt.Println("Read returned an error:", err)
 		}
-		if readBytes == 0 {
+		if bytes == 0 {
 			log.Fatalf("Received 0 bytes from controller %d", controllerNumber)
 		}
 
@@ -104,35 +106,35 @@ func loadController(device *gousb.Device, controllerNumber int, keyboard *sendke
 		// 64: 1st button pressed
 		// 32-0: position and accellerometer
 		// 18 is level, ~30 is vertical. Lower than 18 means a fast swing down. Higher than ~30 is a fast swing up.
-		input := buf[3]
+		input := buffer[3]
 
-		input = handleButtonPress(controllerNumber, input, &buttonPressed, keyboard)
+		input = handleButtonPress(controllerNumber, input, &buttonPressed)
 
 		if lastStroke == Handstroke && input < 18 {
 			// ring the backstroke
 			fmt.Printf("Backstroke rung by controller %d\n", controllerNumber)
 			lastStroke = Backstroke
-			keyboard.Type(keys[controllerNumber])
+			sendKeyPress(keys[controllerNumber])
 		}
 
 		if lastStroke == Backstroke && input > 30 {
 			// ring the handstroke
 			fmt.Printf("Handstroke rung by controller %d\n", controllerNumber)
 			lastStroke = Handstroke
-			keyboard.Type(keys[controllerNumber])
+			sendKeyPress(keys[controllerNumber])
 		}
 	}
 }
 
-func handleButtonPress(controller int, input byte, buttonPressed *ButtonPress, key *sendkeys.KBWrap) byte {
+func handleButtonPress(controller int, input byte, buttonPressed *ButtonPress) byte {
 	if (input>>7)&1 == 1 {
 		if !buttonPressed.First {
 			fmt.Printf("Button 1 pressed on controller %d\n", controller)
 			if controller == 1 {
-				key.Type(buttons.Button1)
+				sendKeyPress(buttons.Button1)
 			}
 			if controller == 2 {
-				key.Type(buttons.Button3)
+				sendKeyPress(buttons.Button3)
 			}
 		}
 		buttonPressed.First = true
@@ -144,10 +146,10 @@ func handleButtonPress(controller int, input byte, buttonPressed *ButtonPress, k
 		if !buttonPressed.Second {
 			fmt.Printf("Button 2 pressed on controller %d\n", controller)
 			if controller == 1 {
-				key.Type(buttons.Button2)
+				sendKeyPress(buttons.Button2)
 			}
 			if controller == 2 {
-				key.Type(buttons.Button4)
+				sendKeyPress(buttons.Button4)
 			}
 		}
 
@@ -167,4 +169,11 @@ func clearBit(input byte, pos uint) byte {
 	var mask byte = ^(1 << pos)
 	input &= mask
 	return input
+}
+
+func sendKeyPress(key int) {
+	keyboard.SetKeys(key)
+	keyboard.Press()
+	keyboard.Release()
+	keyboard.Clear()
 }

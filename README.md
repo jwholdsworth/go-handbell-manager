@@ -21,6 +21,5 @@ sudo udevadm control --reload
 ## Todo
 
 * Write some tests
-* Sort out the button presses so you can start/stop/go like you can in Graham's Windows version
 * Target just the Abel process so it doesn't start typing "F" and "J" all over the place
 * Document any external libraries that might need to be installed (e.g. libusb)
