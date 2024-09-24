@@ -55,7 +55,6 @@ func main() {
 	wg.Add(len(devices))
 
 	for i, device := range devices {
-		defer device.Close()
 		go loadController(device, i+1)
 	}
 
@@ -63,6 +62,7 @@ func main() {
 }
 
 func loadController(device *gousb.Device, controllerNumber int) {
+	defer closeDevice(device, controllerNumber)
 	configuration, err := device.Config(1)
 	if err != nil {
 		log.Fatalf("Error getting configuration for controller %d: %v", controllerNumber, err)
@@ -185,4 +185,9 @@ func closeConfiguration(configuration *gousb.Config, controller int) {
 func closeInterface(intf *gousb.Interface, controller int) {
 	intf.Close()
 	log.Printf("Closing interface for controller %d", controller)
+}
+
+func closeDevice(device *gousb.Device, controller int) {
+	device.Close()
+	log.Printf("Closing device for controller %d", controller)
 }
