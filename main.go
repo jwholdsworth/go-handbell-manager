@@ -41,7 +41,7 @@ func main() {
 	})
 
 	if err != nil {
-		log.Panic("Could not find any devices")
+		log.Fatal("Could not find any devices")
 	}
 
 	log.Printf("Detected %d devices", len(devices))
@@ -65,7 +65,7 @@ func loadController(device *gousb.Device, controllerNumber int) {
 	defer closeDevice(device, controllerNumber)
 	configuration, err := device.Config(1)
 	if err != nil {
-		log.Fatalf("Error getting configuration for controller %d: %v", controllerNumber, err)
+		log.Panicf("Error getting configuration for controller %d: %v", controllerNumber, err)
 	}
 	defer closeConfiguration(configuration, controllerNumber)
 
@@ -73,13 +73,13 @@ func loadController(device *gousb.Device, controllerNumber int) {
 
 	intf, err := configuration.Interface(0, 0)
 	if err != nil {
-		log.Fatalf("Error reading interface for controller %d: %v", controllerNumber, err)
+		log.Panicf("Error reading interface for controller %d: %v", controllerNumber, err)
 	}
 	defer closeInterface(intf, controllerNumber)
 
 	endpoint, err := intf.InEndpoint(1)
 	if err != nil {
-		log.Fatalf("Error reading endpoint for controller %d: %v", controllerNumber, err)
+		log.Panicf("Error reading endpoint for controller %d: %v", controllerNumber, err)
 	}
 
 	buffer := make([]byte, 10*endpoint.Desc.MaxPacketSize)
@@ -94,10 +94,10 @@ func loadController(device *gousb.Device, controllerNumber int) {
 	for {
 		bytes, err := endpoint.Read(buffer)
 		if err != nil {
-			log.Fatalf("Unable to read from controller %d. The error was: %s", controllerNumber, err)
+			log.Panicf("Unable to read from controller %d. The error was: %s", controllerNumber, err)
 		}
 		if bytes == 0 {
-			log.Fatalf("Received 0 bytes from controller %d", controllerNumber)
+			log.Panicf("Received 0 bytes from controller %d", controllerNumber)
 		}
 
 		// the 4th byte is the one we're interested in. The bits are organised as follows:
